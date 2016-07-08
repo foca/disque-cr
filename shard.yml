@@ -1,0 +1,15 @@
+name: disque
+version: 0.1.0
+
+dependencies:
+  resp:
+    github: soveran/resp-crystal
+    branch: 49674aa2a8a6c7e7beae044fd74022a3d71def5b
+  crotest:
+    github: emancu/crotest
+    branch: cd443446f4bdc5d9a8e555c2afed1849f325c432
+
+authors:
+  - Nicolas Sanguinetti <contacto@nicolassanguinetti.info>
+
+license: MIT
