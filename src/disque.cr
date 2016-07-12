@@ -26,7 +26,7 @@ require "resp"
 class Disque
   @hosts : Array(String)
 
-  def initialize(hosts : String | Array(String), auth : String? = nil, cycle = 1000)
+  def initialize(hosts : String | Array(String), auth : String? = nil, cycle = 1000, @log : IO = STDERR)
     if hosts.is_a?(String)
       hosts = hosts.split(",")
     end
@@ -197,7 +197,7 @@ class Disque
         scout.quit
       rescue ex : Errno
         raise ex unless ignorable_connection_error?(ex)
-        STDERR.puts(ex.inspect)
+        @log.puts(ex.message)
       end
     end
 
