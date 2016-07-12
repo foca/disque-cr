@@ -1,16 +1,46 @@
 require "./spec_helper"
 
 NODES = [
+  "127.0.0.1:6609",
   "127.0.0.1:6610",
   "127.0.0.1:6611",
   "127.0.0.1:6612",
-  "127.0.0.1:6613",
 ]
 
-DISQUE_GOOD_NODES = NODES[0, 2]
+DISQUE_GOOD_NODES = NODES[1, 2]
 DISQUE_BAD_NODES = NODES - DISQUE_GOOD_NODES
 
 describe Disque do
+  it "raises when it can't connect to any node" do
+    log = MemoryIO.new
+
+    assert_raise ArgumentError do
+      Disque.new(DISQUE_BAD_NODES, log: log)
+    end
+
+    log_output = <<-ERR
+      Error connecting to '127.0.0.1:6609': Connection refused
+      Error connecting to '127.0.0.1:6612': Connection refused
+
+      ERR
+
+    assert_equal log_output, log.to_s
+  end
+
+  it "retries until a connection is possible" do
+    log = MemoryIO.new
+    c = Disque.new(NODES, auth: "testpass", log: log)
+
+    log_output = <<-ERR
+      Error connecting to '127.0.0.1:6609': Connection refused
+      Error connecting to '127.0.0.1:6612': Connection refused
+
+      ERR
+
+    assert_equal log_output, log.to_s
+    assert_equal "PONG", c.call("PING")
+  end
+
   it "raises if auth is not provided" do
     # FIXME: Crotest doesn't allow testing the exception's message.
     #        -> https://github.com/emancu/crotest/issues/5
