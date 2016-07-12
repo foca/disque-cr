@@ -1,13 +1,13 @@
 require "./spec_helper"
 
 NODES = [
-  "127.0.0.1:7700",
-  "127.0.0.1:7711",
-  "127.0.0.1:7722",
-  "127.0.0.1:7744",
+  "127.0.0.1:6610",
+  "127.0.0.1:6611",
+  "127.0.0.1:6612",
+  "127.0.0.1:6613",
 ]
 
-DISQUE_GOOD_NODES = NODES[1, 2]
+DISQUE_GOOD_NODES = NODES[0, 2]
 DISQUE_BAD_NODES = NODES - DISQUE_GOOD_NODES
 
 describe Disque do

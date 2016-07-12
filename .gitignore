@@ -9,3 +9,4 @@
 /shard.lock
 
 /src/disque/version.cr
+/tmp

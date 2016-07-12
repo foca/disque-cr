@@ -1,12 +1,25 @@
 DEPS = shard.lock src/disque/version.cr
 VERSION = $(shell cat shard.yml | sed -n -e '/^version:/s/version: //p')
 
+SERVERS = 6610 6611
+TEST_DEPS = $(addprefix tmp/, $(addsuffix /disque.pid, $(SERVERS)))
+
 .PHONY: all
 all: $(DEPS) test
 
 .PHONY: test
-test: $(DEPS)
+test: $(DEPS) pre-test
 	crystal spec
+	$(MAKE) clean-test
+
+.PHONY: pre-test
+pre-test: $(TEST_DEPS)
+	 for port in $(SERVERS); do $(foreach port,$(SERVERS), disque -p $$port cluster meet 127.0.0.1 $(port);) done >/dev/null
+
+.PHONY: clean-test
+clean-test:
+	for file in $(TEST_DEPS); do [ -f "$$file" ] && kill `cat $$file`; done
+	rm -rf tmp/*/*
 
 .PHONY: release
 release: $(DEPS)
@@ -20,3 +33,9 @@ src/disque/version.cr: shard.yml
 
 shard.lock: shard.yml
 	crystal deps
+
+tmp/%/disque.pid: spec/support/disque.tpl | tmp/%
+	m4 -DPWD=$(PWD)/tmp/$* -DPORT=$* $< | disque-server -
+
+tmp $(addprefix tmp/,$(SERVERS)):
+	mkdir -p $@
