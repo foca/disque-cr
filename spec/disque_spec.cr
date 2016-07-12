@@ -12,7 +12,7 @@ DISQUE_BAD_NODES = NODES - DISQUE_GOOD_NODES
 
 describe Disque do
   it "doesn't block when no jobs are available" do
-    c = Disque.new(DISQUE_GOOD_NODES)
+    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
     reached = false
 
     c.fetch(from: ["foo"], timeout: 1) do |job|
@@ -23,7 +23,7 @@ describe Disque do
   end
 
   it "queues and fetches one job" do
-    c = Disque.new(DISQUE_GOOD_NODES)
+    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
 
     c.push("foo", "bar", 1000)
 
@@ -33,7 +33,7 @@ describe Disque do
   end
 
   it "queues and fetches multiple jobs" do
-    c = Disque.new(DISQUE_GOOD_NODES)
+    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
 
     c.push("foo", "bar", 1000)
     c.push("foo", "baz", 1000)
@@ -49,7 +49,7 @@ describe Disque do
   end
 
   it "puts jobs into and takes from multiple queues" do
-    c = Disque.new(DISQUE_GOOD_NODES)
+    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
 
     c.push("foo", "bar", 1000)
     c.push("qux", "baz", 1000)
@@ -67,7 +67,7 @@ describe Disque do
   end
 
   it "add jobs with other parameters" do
-    c = Disque.new(DISQUE_GOOD_NODES)
+    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
     c.push("foo", "bar", 1000, async: true, ttl: 1)
 
     sleep 2
@@ -85,7 +85,7 @@ describe Disque do
   end
 
   it "ack jobs when block is given" do
-    c = Disque.new(DISQUE_GOOD_NODES)
+    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
     c.push("q1", "j1", 1000)
 
     job = c.fetch(from: ["q1"]) { |j| }.first
@@ -96,7 +96,7 @@ describe Disque do
   end
 
   it "don't ack jobs when no block is given" do
-    c = Disque.new(DISQUE_GOOD_NODES)
+    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
 
     c.push("q1", "j1", 1000)
 
