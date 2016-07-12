@@ -11,6 +11,14 @@ DISQUE_GOOD_NODES = NODES[0, 2]
 DISQUE_BAD_NODES = NODES - DISQUE_GOOD_NODES
 
 describe Disque do
+  it "raises if auth is not provided" do
+    # FIXME: Crotest doesn't allow testing the exception's message.
+    #        -> https://github.com/emancu/crotest/issues/5
+    assert_raise Resp::Error do
+      Disque.new(DISQUE_GOOD_NODES)
+    end
+  end
+
   it "doesn't block when no jobs are available" do
     c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
     reached = false
