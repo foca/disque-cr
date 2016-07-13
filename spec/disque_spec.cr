@@ -148,4 +148,15 @@ describe Disque do
       end
     end
   end
+
+  it "relies on the disque cluster" do
+    c1 = Disque.new([DISQUE_GOOD_NODES[0]], cycle: 2, auth: "testpass")
+    c2 = Disque.new([DISQUE_GOOD_NODES[1]], cycle: 2, auth: "testpass")
+
+    c1.push("q1", "j1", 0)
+
+    c2.fetch(from: ["q1"], count: 10) do |job|
+      assert_equal "j1", job.body
+    end
+  end
 end
