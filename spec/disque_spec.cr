@@ -10,8 +10,27 @@ NODES = [
 DISQUE_GOOD_NODES = NODES[1, 2]
 DISQUE_BAD_NODES = NODES - DISQUE_GOOD_NODES
 
+class Disque
+  getter! :stats
+  getter! :prefix
+  getter! :nodes
+end
+
 describe Disque do
+  before do
+    Disque.new(DISQUE_GOOD_NODES, auth: "testpass").call("DEBUG", "FLUSHALL")
+  end
+
   describe "connecting" do
+    it "connects via a string of comma separated hosts" do
+      nodes = DISQUE_GOOD_NODES.join(",")
+
+      c = Disque.new(nodes, auth: "testpass")
+
+      assert_equal "PONG", c.call("PING")
+      assert_equal DISQUE_GOOD_NODES.size, c.nodes.size
+    end
+
     it "raises when it can't connect to any node" do
       log = MemoryIO.new
 
@@ -158,5 +177,59 @@ describe Disque do
     c2.fetch(from: ["q1"], count: 10) do |job|
       assert_equal "j1", job.body
     end
+  end
+end
+
+describe Disque do
+  before do
+    Disque.new(DISQUE_GOOD_NODES, auth: "testpass").call("DEBUG", "FLUSHALL")
+  end
+
+  it "reconnects to a different node after {{cycle}} operations" do
+    c1 = Disque.new(
+      [DISQUE_GOOD_NODES[1], DISQUE_GOOD_NODES[0]], cycle: 2, auth: "testpass"
+    )
+    c2 = Disque.new(
+      [DISQUE_GOOD_NODES[0], DISQUE_GOOD_NODES[1]], cycle: 2, auth: "testpass"
+    )
+
+    assert c1.prefix != c2.prefix
+
+    c1.push("q1", "j1", 10)
+    c1.push("q1", "j2", 10)
+    c1.push("q1", "j3", 10)
+
+    c2.fetch(from: ["q1"])
+    c2.fetch(from: ["q1"])
+    c2.fetch(from: ["q1"])
+
+    # Client should have reconnected
+    assert c1.prefix == c2.prefix
+  end
+
+  it "connects to the best node" do
+    c1 = Disque.new(
+      [DISQUE_GOOD_NODES[1], DISQUE_GOOD_NODES[0]], cycle: 2, auth: "testpass"
+    )
+    c2 = Disque.new(
+      [DISQUE_GOOD_NODES[1]], cycle: 2, auth: "testpass"
+    )
+
+    assert c1.prefix != c2.prefix
+
+    # Tamper stats to trigger a reconnection
+    c1.stats[c2.prefix] = 10
+
+    c1.push("q1", "j1", 10)
+    c1.push("q1", "j2", 10)
+
+    c2.push("q1", "j3", 10)
+
+    c1.fetch(from: ["q1"])
+    c1.fetch(from: ["q1"])
+    c1.fetch(from: ["q1"])
+
+    # Client should have reconnected
+    assert c1.prefix == c2.prefix
   end
 end
