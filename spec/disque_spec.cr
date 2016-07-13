@@ -42,11 +42,11 @@ describe Disque do
   end
 
   it "raises if auth is not provided" do
-    # FIXME: Crotest doesn't allow testing the exception's message.
-    #        -> https://github.com/emancu/crotest/issues/5
-    assert_raise Resp::Error do
+    ex = assert_raise Resp::Error do
       Disque.new(DISQUE_GOOD_NODES)
     end
+
+    assert_equal "NOAUTH Authentication required.", ex.to_s
   end
 
   it "doesn't block when no jobs are available" do
