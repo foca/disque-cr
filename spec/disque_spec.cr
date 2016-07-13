@@ -11,137 +11,141 @@ DISQUE_GOOD_NODES = NODES[1, 2]
 DISQUE_BAD_NODES = NODES - DISQUE_GOOD_NODES
 
 describe Disque do
-  it "raises when it can't connect to any node" do
-    log = MemoryIO.new
+  describe "connecting" do
+    it "raises when it can't connect to any node" do
+      log = MemoryIO.new
 
-    assert_raise ArgumentError do
-      Disque.new(DISQUE_BAD_NODES, log: log)
+      assert_raise ArgumentError do
+        Disque.new(DISQUE_BAD_NODES, log: log)
+      end
+
+      log_output = <<-ERR
+        Error connecting to '127.0.0.1:6609': Connection refused
+        Error connecting to '127.0.0.1:6612': Connection refused
+
+        ERR
+
+      assert_equal log_output, log.to_s
     end
 
-    log_output = <<-ERR
-      Error connecting to '127.0.0.1:6609': Connection refused
-      Error connecting to '127.0.0.1:6612': Connection refused
+    it "retries until a connection is possible" do
+      log = MemoryIO.new
+      c = Disque.new(NODES, auth: "testpass", log: log)
 
-      ERR
+      log_output = <<-ERR
+        Error connecting to '127.0.0.1:6609': Connection refused
+        Error connecting to '127.0.0.1:6612': Connection refused
 
-    assert_equal log_output, log.to_s
-  end
+        ERR
 
-  it "retries until a connection is possible" do
-    log = MemoryIO.new
-    c = Disque.new(NODES, auth: "testpass", log: log)
-
-    log_output = <<-ERR
-      Error connecting to '127.0.0.1:6609': Connection refused
-      Error connecting to '127.0.0.1:6612': Connection refused
-
-      ERR
-
-    assert_equal log_output, log.to_s
-    assert_equal "PONG", c.call("PING")
-  end
-
-  it "raises if auth is not provided" do
-    ex = assert_raise Resp::Error do
-      Disque.new(DISQUE_GOOD_NODES)
+      assert_equal log_output, log.to_s
+      assert_equal "PONG", c.call("PING")
     end
 
-    assert_equal "NOAUTH Authentication required.", ex.to_s
-  end
+    it "raises if auth is not provided" do
+      ex = assert_raise Resp::Error do
+        Disque.new(DISQUE_GOOD_NODES)
+      end
 
-  it "doesn't block when no jobs are available" do
-    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
-    reached = false
-
-    c.fetch(from: ["foo"], timeout: 1) do |job|
-      reached = true
-    end
-
-    assert_equal false, reached
-  end
-
-  it "queues and fetches one job" do
-    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
-
-    c.push("foo", "bar", 1000)
-
-    c.fetch(from: ["foo"], count: 10) do |job|
-      assert_equal "bar", job.body
+      assert_equal "NOAUTH Authentication required.", ex.to_s
     end
   end
 
-  it "queues and fetches multiple jobs" do
-    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
+  describe "queueing and fetching jobs" do
+    it "doesn't block when no jobs are available" do
+      c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
+      reached = false
 
-    c.push("foo", "bar", 1000)
-    c.push("foo", "baz", 1000)
+      c.fetch(from: ["foo"], timeout: 1) do |job|
+        reached = true
+      end
 
-    jobs = ["baz", "bar"]
-
-    c.fetch(from: ["foo"], count: 10) do |job|
-      assert_equal jobs.pop, job.body
-      assert_equal "foo", job.queue
+      assert_equal false, reached
     end
 
-    assert jobs.empty?
-  end
+    it "queues and fetches one job" do
+      c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
 
-  it "puts jobs into and takes from multiple queues" do
-    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
+      c.push("foo", "bar", 1000)
 
-    c.push("foo", "bar", 1000)
-    c.push("qux", "baz", 1000)
-
-    queues = ["qux", "foo"]
-    jobs = ["baz", "bar"]
-
-    result = c.fetch(from: ["foo", "qux"], count: 10) do |job|
-      assert_equal jobs.pop, job.body
-      assert_equal queues.pop, job.queue
+      c.fetch(from: ["foo"], count: 10) do |job|
+        assert_equal "bar", job.body
+      end
     end
 
-    assert jobs.empty?
-    assert queues.empty?
-  end
+    it "queues and fetches multiple jobs" do
+      c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
 
-  it "add jobs with other parameters" do
-    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
-    c.push("foo", "bar", 1000, async: true, ttl: 1)
+      c.push("foo", "bar", 1000)
+      c.push("foo", "baz", 1000)
 
-    sleep 2
+      jobs = ["baz", "bar"]
 
-    queues = ["foo"]
-    jobs = ["bar"]
+      c.fetch(from: ["foo"], count: 10) do |job|
+        assert_equal jobs.pop, job.body
+        assert_equal "foo", job.queue
+      end
 
-    result = c.fetch(from: ["foo"], count: 10, timeout: 1) do |job|
-      assert_equal jobs.pop, job.body
-      assert_equal queues.pop, job.queue
+      assert jobs.empty?
     end
 
-    assert_equal ["bar"], jobs
-    assert_equal ["foo"], queues
-  end
+    it "puts jobs into and takes from multiple queues" do
+      c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
 
-  it "ack jobs when block is given" do
-    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
-    c.push("q1", "j1", 1000)
+      c.push("foo", "bar", 1000)
+      c.push("qux", "baz", 1000)
 
-    job = c.fetch(from: ["q1"]) { |j| }.first
+      queues = ["qux", "foo"]
+      jobs = ["baz", "bar"]
 
-    if info = c.info(job)
-      assert_equal "acked", info.fetch("state")
+      result = c.fetch(from: ["foo", "qux"], count: 10) do |job|
+        assert_equal jobs.pop, job.body
+        assert_equal queues.pop, job.queue
+      end
+
+      assert jobs.empty?
+      assert queues.empty?
     end
-  end
 
-  it "don't ack jobs when no block is given" do
-    c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
+    it "adds jobs with other parameters" do
+      c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
+      c.push("foo", "bar", 1000, async: true, ttl: 1)
 
-    c.push("q1", "j1", 1000)
+      sleep 2
 
-    job = c.fetch(from: ["q1"]).first
+      queues = ["foo"]
+      jobs = ["bar"]
 
-    if info = c.info(job)
-      assert_equal "active", info.fetch("state")
+      result = c.fetch(from: ["foo"], count: 10, timeout: 1) do |job|
+        assert_equal jobs.pop, job.body
+        assert_equal queues.pop, job.queue
+      end
+
+      assert_equal ["bar"], jobs
+      assert_equal ["foo"], queues
+    end
+
+    it "ACKs jobs when block is given" do
+      c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
+      c.push("q1", "j1", 1000)
+
+      job = c.fetch(from: ["q1"]) { |j| }.first
+
+      if info = c.info(job)
+        assert_equal "acked", info.fetch("state")
+      end
+    end
+
+    it "doesn't ACK jobs when no block is given" do
+      c = Disque.new(DISQUE_GOOD_NODES, auth: "testpass")
+
+      c.push("q1", "j1", 1000)
+
+      job = c.fetch(from: ["q1"]).first
+
+      if info = c.info(job)
+        assert_equal "active", info.fetch("state")
+      end
     end
   end
 end
