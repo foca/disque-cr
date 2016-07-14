@@ -150,7 +150,7 @@ describe Disque do
 
       job = c.fetch(from: ["q1"]) { |j| }.first
 
-      if info = c.info(job)
+      if info = c.show(job)
         assert_equal "acked", info.fetch("state")
       end
     end
@@ -162,7 +162,7 @@ describe Disque do
 
       job = c.fetch(from: ["q1"]).first
 
-      if info = c.info(job)
+      if info = c.show(job)
         assert_equal "active", info.fetch("state")
       end
     end

@@ -135,11 +135,11 @@ class Disque
     call(args)
   end
 
-  def info(job : Job)
+  def show(job : Job) : Hash(String, Resp::Reply)
     info(job.msgid)
   end
 
-  def info(id : String)
+  def show(id : String) : Hash(String, Resp::Reply)
     if reply = call("SHOW", id)
       keys = Array(String).new
       vals = Array(Resp::Reply).new
