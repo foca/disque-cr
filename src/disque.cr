@@ -26,10 +26,11 @@ require "resp"
 class Disque
   @hosts : Array(String)
 
-  def initialize(hosts : String, **args)
-    initialize(hosts.split(","), **args)
-  end
-
+  # Connect to a Disque cluster and initialize the client.
+  #
+  # ```
+  # client = Disque.new(["127.0.0.1:7711", "127.0.0.1:7712"], auth: "ebf12a...")
+  # ```
   def initialize(hosts : Array(String), auth : String? = nil, cycle = 1000, @log : IO = STDERR)
     @hosts = hosts
 
@@ -51,6 +52,19 @@ class Disque
     explore!
   end
 
+  # Connect to a Disque cluster and initialize the client.
+  #
+  # ```
+  # client = Disque.new("127.0.0.1:7711,127.0.0.1:7712", auth: "ebf12a...")
+  # ```
+  #
+  # See `initialize(hosts : Array(String))` for the available options.
+  def initialize(hosts : String, **args)
+    initialize(hosts.split(","), **args)
+  end
+
+  # Add a Job to the given queue.
+  #
   # Disque's ADDJOB signature is as follows:
   #
   #     ADDJOB queue_name job <ms-timeout>
@@ -64,7 +78,9 @@ class Disque
   # You can pass any optional arguments as a hash,
   # for example:
   #
-  #     disque.push("foo", "myjob", 1000, ttl: 1, async: true)
+  # ```
+  # disque.push("foo", "myjob", 1000, ttl: 1, async: true)
+  # ```
   #
   # Note that `async` is a special case because it's just a
   # flag. That's why `true` must be passed as its value.
@@ -75,9 +91,19 @@ class Disque
     call(command)
   end
 
-  # Public: Fetch new jobs from the given list of queues.
+  # Fetch new jobs from the given list of queues.
   #
-  # Returns an Array(Disque::Job)
+  # ```
+  # jobs = client.fetch(from: ["a-queue"])
+  # jobs.each do |job|
+  #   # do something with the job
+  #
+  #   client.call("ACKJOB", job.msgid)
+  # end
+  # ```
+  #
+  # Note that the version of this method that takes a block will automatically
+  # call ACKJOB with the job for you.
   def fetch(from : Array(String), count : Int32 = 1, timeout : Int32 = 0)
     pick_client!
 
@@ -105,11 +131,15 @@ class Disque
     end
   end
 
-  # Public: Fetch new jobs from the given list of queues, pass them to a block,
-  # and acknowledge them as they are consumed.
+  # Fetch new jobs from the given list of queues, pass them to a block, and
+  # acknowledge them as they are consumed.
   #
-  # Returns an Array(Disque::Job)?
-  def fetch(from : Array(String), count = 1, timeout = 0, &block)
+  # ```
+  # client.fetch(from: ["a-queue"]) do |job|
+  #   # do something with the job
+  # end
+  # ```
+  def fetch(from : Array(String), count : Int32 = 1, timeout : Int32 = 0, &block)
     fetch(from, count, timeout).each do |job|
       # Process job
       yield(job)
@@ -119,9 +149,7 @@ class Disque
     end
   end
 
-  # Public: Send a command to the currently connected server.
-  #
-  # Returns a Resp::Reply.
+  # :nodoc:
   def call(args)
     explore! if @client.nil?
     @client.as(Resp).call(args)
@@ -131,14 +159,28 @@ class Disque
     @client.as(Resp).call(args)
   end
 
+  # Send a command to the currently connected server.
+  #
+  # ```
+  # client.call("CLUSTER", "MEET", "127.0.0.1", "4567")
+  # ```
   def call(*args)
     call(args)
   end
 
+  # Get information about a specific Disque::Job.
+  #
+  # ```
+  # client.fetch(from: ["queue"]) do |job|
+  #   info = client.show(job)
+  #   # ... do something with the `info` Hash.
+  # end
+  # ```
   def show(job : Job) : Hash(String, Resp::Reply)
     info(job.msgid)
   end
 
+  # Get information about a specific Job, given the job's ID.
   def show(id : String) : Hash(String, Resp::Reply)
     if reply = call("SHOW", id)
       keys = Array(String).new
@@ -156,12 +198,12 @@ class Disque
     end
   end
 
-  # Public: Disconnect from the nodes.
+  # Disconnect from the nodes.
   def quit
     @client.quit if @client
   end
 
-  def url(host)
+  private def url(host)
     if @auth
       "disque://:%s@%s" % [@auth, host]
     else
@@ -171,7 +213,7 @@ class Disque
 
   # Collect the list of nodes and keep a connection to the node that provided
   # that information.
-  def explore!
+  private def explore!
     # Reset nodes
     @nodes.clear
 
@@ -204,7 +246,7 @@ class Disque
     raise ArgumentError.new("nodes unavailable") if @client.nil?
   end
 
-  def pick_client!
+  private def pick_client!
     if @count == @cycle
       @count = 0
       prefix, _ = @stats.max
@@ -224,10 +266,10 @@ class Disque
     end
   end
 
-  # Internal: Convert a Hash of options into something understandable by Resp.
-  # For the special case of unary options, we assume that `foo: true` means
-  # passing just "foo".
-  def options_to_arguments(options)
+  # Convert a Hash of options into something understandable by Resp. For the
+  # special case of unary options, we assume that `foo: true` means passing just
+  # "foo".
+  private def options_to_arguments(options)
     arguments = Array(String).new
 
     options.each do |key, value|
@@ -241,9 +283,9 @@ class Disque
     arguments
   end
 
-  # Internal: Check whether a given error is the kind of connection errors we
-  # can ignore / try to explore!  again to find a new server.
-  def ignorable_connection_error?(ex : Errno)
+  # Check whether a given error is the kind of connection errors we can ignore /
+  # try to explore!  again to find a new server.
+  private def ignorable_connection_error?(ex : Errno)
     ex.errno & (Errno::ECONNREFUSED | Errno::EINVAL) != 0
   end
 end
