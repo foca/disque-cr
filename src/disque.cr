@@ -26,11 +26,11 @@ require "resp"
 class Disque
   @hosts : Array(String)
 
-  def initialize(hosts : String | Array(String), auth : String? = nil, cycle = 1000, @log : IO = STDERR)
-    if hosts.is_a?(String)
-      hosts = hosts.split(",")
-    end
+  def initialize(hosts : String, **args)
+    initialize(hosts.split(","), **args)
+  end
 
+  def initialize(hosts : Array(String), auth : String? = nil, cycle = 1000, @log : IO = STDERR)
     @hosts = hosts
 
     # Cluster password
